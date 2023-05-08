@@ -55,7 +55,7 @@ fn main() -> Result<()> {
     L                  - List all games currently on the console
     F file             - Dump the current filesystem block to [file]
     X blkno nand spare - Read one block and its spare data from the console to [nand] and [spare]
-    ;C                 - Print statistics about the console's NAND
+    C                  - Print statistics about the console's NAND
     Q                  - Close USB connection to the console
 
     1 [nand, spare]    - Dump the console's NAND to 'nand.bin' and 'spare.bin', or [nand] and [spare] if both are provided
@@ -283,7 +283,20 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "C" => {
-                        eprintln!("Unimplemented")
+                        if let Some(player) = &context.player {
+                            match player.GetStats() {
+                                Ok((free, used, bad, seqno)) =>
+                                    println!("Free: {free} ({})\nUsed: {used} ({})\nBad: {bad} ({})\nSequence Number: {seqno}", 
+                                        Byte::from_bytes((free * 0x4000) as u128).get_appropriate_unit(true),
+                                        Byte::from_bytes((used * 0x4000) as u128).get_appropriate_unit(true),
+                                        Byte::from_bytes((bad * 0x4000) as u128).get_appropriate_unit(true)),
+                                Err(e) => {
+                                    eprintln!("{e}")
+                                }
+                            }
+                        } else {
+                            eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
+                        }
                     }
                     "Q" => {
                         if let Some(player) = &mut context.player {
@@ -300,7 +313,7 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
 
                     "1" => {
-                        if let Some(player) = &mut context.player {
+                        if let Some(player) = &context.player {
                             let (nand_filename, spare_filename) = if command.len() < 3 {
                                 ("nand.bin", "spare.bin")
                             } else {
