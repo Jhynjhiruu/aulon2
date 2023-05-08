@@ -1,6 +1,6 @@
 #![feature(let_chains)]
 
-use std::fs::write;
+use std::fs::{read, write};
 
 use anyhow::Result;
 use bb::BBPlayer;
@@ -52,13 +52,17 @@ fn main() -> Result<()> {
     H value            - Set LED (0, 1 = off; 2 = on; 3 = flashing)
     ;S hash_file       - Sign the SHA-1 hash in [hash_file] using ECDSA
     J                  - Set console clock to PC's current time
-    L                  - List all files currently on the console
+    L                  - List all games currently on the console
     F file             - Dump the current filesystem block to [file]
-    1 [nand, spare]    - Dump the console's NAND to 'nand.bin' and 'spare.bin', or [nand] and [spare] if both are provided
     X blkno nand spare - Read one block and its spare data from the console to [nand] and [spare]
-    3 file             - Read [file] from the console
     ;C                 - Print statistics about the console's NAND
     Q                  - Close USB connection to the console
+
+    1 [nand, spare]    - Dump the console's NAND to 'nand.bin' and 'spare.bin', or [nand] and [spare] if both are provided
+    3 file             - Read [file] from the console
+    4 file             - Write [file] to the console
+    5                  - List all files currently on the console
+    6 file             - Delete [file] from the console
 
     h                  - Print this help
     ?                  - Print copyright and licensing information
@@ -103,9 +107,13 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "s" => {
-                        if let Some(player) = &mut context.player && player.initialised() {
-                            eprintln!("Device already opened! Please close it with 'Q' before selecting a new device.");
-                            continue;
+                        if let Some(player) = &mut context.player {
+                            if player.initialised() {
+                                eprintln!("Device already opened! Please close it with 'Q' before selecting a new device.");
+                                continue;
+                            }
+                            let _ = player.Close();
+                            context.player = None;
                         }
                         if command.len() < 2 {
                             eprintln!("'s' requires an argument, 'device'. Type 'h' for a list of commands and their arguments.");
@@ -197,13 +205,16 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             match player.ListFiles() {
                                 Ok(files) => {
                                     for (filename, size) in files {
-                                        println!(
-                                            "{:>12}: {:>7}",
-                                            filename,
-                                            Byte::from_bytes(size.into())
-                                                .get_appropriate_unit(true)
-                                                .format(0)
-                                        );
+                                        if filename.ends_with(".rec") || filename.ends_with(".app")
+                                        {
+                                            println!(
+                                                "{:>12}: {:>7}",
+                                                filename,
+                                                Byte::from_bytes(size.into())
+                                                    .get_appropriate_unit(true)
+                                                    .format(0)
+                                            );
+                                        }
                                     }
                                 }
                                 Err(e) => {
@@ -227,39 +238,6 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                         eprintln!("{e}")
                                     }
                                 },
-                                Err(e) => {
-                                    eprintln!("{e}")
-                                }
-                            }
-                        } else {
-                            eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
-                        }
-                    }
-                    "1" => {
-                        if let Some(player) = &mut context.player {
-                            let (nand_filename, spare_filename) = if command.len() < 3 {
-                                ("nand.bin", "spare.bin")
-                            } else {
-                                (command[1], command[2])
-                            };
-                            let (nand, spare) = match player.DumpNAND() {
-                                Ok(ns) => {
-                                    println!("DumpNAND success");
-                                    ns
-                                }
-                                Err(e) => {
-                                    eprintln!("{e}");
-                                    continue;
-                                }
-                            };
-                            match write(nand_filename, nand) {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    eprintln!("{e}")
-                                }
-                            }
-                            match write(spare_filename, spare) {
-                                Ok(_) => {}
                                 Err(e) => {
                                     eprintln!("{e}")
                                 }
@@ -304,6 +282,56 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
+                    "C" => {
+                        eprintln!("Unimplemented")
+                    }
+                    "Q" => {
+                        if let Some(player) = &mut context.player {
+                            match player.Close() {
+                                Ok(_) => println!("Close success"),
+                                Err(e) => {
+                                    eprintln!("{e}")
+                                }
+                            }
+                            context.player = None;
+                        } else {
+                            eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
+                        }
+                    }
+
+                    "1" => {
+                        if let Some(player) = &mut context.player {
+                            let (nand_filename, spare_filename) = if command.len() < 3 {
+                                ("nand.bin", "spare.bin")
+                            } else {
+                                (command[1], command[2])
+                            };
+                            let (nand, spare) = match player.DumpNAND() {
+                                Ok(ns) => {
+                                    println!("DumpNAND success");
+                                    ns
+                                }
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
+                            match write(nand_filename, nand) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("{e}")
+                                }
+                            }
+                            match write(spare_filename, spare) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("{e}")
+                                }
+                            }
+                        } else {
+                            eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
+                        }
+                    }
                     "3" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -338,18 +366,62 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    "C" => {
-                        eprintln!("Unimplemented")
-                    }
-                    "Q" => {
+                    "4" => {
                         if let Some(player) = &mut context.player {
-                            match player.Close() {
-                                Ok(_) => println!("Close success"),
+                            if command.len() < 2 {
+                                eprintln!("'4' requires an argument, 'file'. Type 'h' for a list of commands and their arguments.");
+                                continue;
+                            }
+
+                            let data = read(command[1])?;
+
+                            match player.WriteFile(data, command[1]) {
+                                Ok(_) => println!("WriteFile success"),
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
+                        } else {
+                            eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
+                        }
+                    }
+                    "5" => {
+                        if let Some(player) = &mut context.player {
+                            match player.ListFiles() {
+                                Ok(files) => {
+                                    for (filename, size) in files {
+                                        println!(
+                                            "{:>12}: {:>7}",
+                                            filename,
+                                            Byte::from_bytes(size.into())
+                                                .get_appropriate_unit(true)
+                                                .format(0)
+                                        );
+                                    }
+                                }
                                 Err(e) => {
                                     eprintln!("{e}")
                                 }
                             }
-                            context.player = None;
+                        } else {
+                            eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
+                        }
+                    }
+                    "6" => {
+                        if let Some(player) = &mut context.player {
+                            if command.len() < 2 {
+                                eprintln!("'6' requires an argument, 'file'. Type 'h' for a list of commands and their arguments.");
+                                continue;
+                            }
+
+                            match player.DeleteFile(command[1]) {
+                                Ok(_) => println!("DeleteFile success"),
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
                         } else {
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
