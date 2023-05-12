@@ -5,6 +5,7 @@ use std::fs::{read, write};
 use anyhow::Result;
 use bb::BBPlayer;
 use byte_unit::Byte;
+use chrono::{DateTime, Local};
 use rustyline::{error::ReadlineError, DefaultEditor};
 
 const PROG_NAME: &str = "aulon2";
@@ -51,7 +52,7 @@ fn main() -> Result<()> {
     I                  - Request the console's unique BBID
     H value            - Set LED (0, 1 = off; 2 = on; 3 = flashing)
     ;S hash_file       - Sign the SHA-1 hash in [hash_file] using ECDSA
-    J                  - Set console clock to PC's current time
+    J [time]           - Set console clock to PC's current time, or [time] if given (note: RFC3339 format)
     L                  - List all games currently on the console
     F file             - Dump the current filesystem block to [file]
     X blkno nand spare - Read one block and its spare data from the console to [nand] and [spare]
@@ -190,7 +191,15 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
                     "J" => {
                         if let Some(player) = &mut context.player {
-                            match player.SetTime() {
+                            let time = if command.len() < 2 {
+                                Local::now().into()
+                            } else if let Ok(dt) = DateTime::parse_from_rfc3339(command[1]) {
+                                dt
+                            } else {
+                                eprintln!("Invalid time; 'J' requires a date given in RFC 3339 format, or none to use the current local time. Type 'h' for a list of commands and their arguments.");
+                                continue;
+                            };
+                            match player.SetTime(time) {
                                 Ok(_) => println!("SetTime success"),
                                 Err(e) => {
                                     eprintln!("{e}")
