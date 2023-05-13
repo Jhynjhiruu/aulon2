@@ -56,6 +56,7 @@ fn main() -> Result<()> {
     L                  - List all games currently on the console
     F file             - Dump the current filesystem block to [file]
     X blkno nand spare - Read one block and its spare data from the console to [nand] and [spare]
+    Y blkno nand spare - Write one block and its spare data from [nand] and [spare] to the console
     C                  - Print statistics about the console's NAND
     Q                  - Close USB connection to the console
 
@@ -282,11 +283,52 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                 }
                             }
                             match write(command[3], spare) {
-                                Ok(_) => {}
+                                Ok(_) => {
+                                    println!("ReadSingleBlock success")
+                                }
                                 Err(e) => {
                                     eprintln!("{e}")
                                 }
                             }
+                        } else {
+                            eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
+                        }
+                    }
+                    "Y" => {
+                        if let Some(player) = &mut context.player {
+                            if command.len() < 4 {
+                                eprintln!("'Y' requires three arguments, 'blkno', 'nand' and 'spare'. Type 'h' for a list of commands and their arguments.");
+                                continue;
+                            }
+                            let blk_num: u32 = match command[1].parse() {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
+                            let nand = match read(command[2]) {
+                                Ok(n) => n,
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
+                            let spare = match read(command[3]) {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
+                            match player.WriteSingleBlock(nand, spare, blk_num) {
+                                Ok(_) => {
+                                    println!("WriteSingleBlock success")
+                                }
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                }
+                            };
                         } else {
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
