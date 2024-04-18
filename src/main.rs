@@ -210,6 +210,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
+                    #[cfg(feature = "raw_access")]
+                    "L" => {
+                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
+                    }
+                    #[cfg(not(feature = "raw_access"))]
                     "L" => {
                         if let Some(player) = &mut context.player {
                             match player.ListFiles() {
@@ -235,6 +240,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
+                    #[cfg(feature = "raw_access")]
+                    "F" => {
+                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
+                    }
+                    #[cfg(not(feature = "raw_access"))]
                     "F" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -338,6 +348,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
+                    #[cfg(feature = "raw_access")]
+                    "C" => {
+                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
+                    }
+                    #[cfg(not(feature = "raw_access"))]
                     "C" => {
                         if let Some(player) = &context.player {
                             match player.GetStats() {
@@ -401,6 +416,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
+                    #[cfg(feature = "raw_access")]
+                    "3" => {
+                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
+                    }
+                    #[cfg(not(feature = "raw_access"))]
                     "3" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -435,11 +455,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(not(feature = "writing"))]
+                    #[cfg(any(not(feature = "writing"), feature = "raw_access"))]
                     "4" => {
                         eprintln!("This version of {PROG_NAME} was built without support for writing; rebuild with `-F writing` to use this command.")
                     }
-                    #[cfg(feature = "writing")]
+                    #[cfg(all(feature = "writing", not(feature = "raw_access")))]
                     "4" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -460,6 +480,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
+                    #[cfg(feature = "raw_access")]
+                    "5" => {
+                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
+                    }
+                    #[cfg(not(feature = "raw_access"))]
                     "5" => {
                         if let Some(player) = &mut context.player {
                             match player.ListFiles() {
@@ -482,11 +507,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(not(feature = "writing"))]
+                    #[cfg(any(not(feature = "writing"), feature = "raw_access"))]
                     "6" => {
                         eprintln!("This version of {PROG_NAME} was built without support for writing; rebuild with `-F writing` to use this command.")
                     }
-                    #[cfg(feature = "writing")]
+                    #[cfg(all(feature = "writing", not(feature = "raw_access")))]
                     "6" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {

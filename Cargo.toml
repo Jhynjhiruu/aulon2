@@ -18,3 +18,4 @@ rustyline = "11.0.0"
 default = []
 patched = ["bbrdb/patched"]
 writing = ["bbrdb/writing"]
+raw_access = ["bbrdb/raw_access"]
