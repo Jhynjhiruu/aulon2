@@ -3,7 +3,7 @@
 use std::fs::{read, write};
 
 use anyhow::Result;
-use bb::BBPlayer;
+use bbrdb::BBPlayer;
 use byte_unit::Byte;
 use chrono::{DateTime, Local};
 use rustyline::{error::ReadlineError, DefaultEditor};
@@ -74,10 +74,10 @@ fn main() -> Result<()> {
                     "?" => {
                         println!(
                             "{PROG_NAME} v{PROG_VER}
-Copyright © 2023 Jhynjhiruu (https://github.com/Jhynjhiruu)
+Copyright © 2023, 2024 Jhynjhiruu (https://github.com/Jhynjhiruu)
 {PROG_NAME} is licensed under the GPL v3 (or any later version).
 
-{PROG_NAME} and libbb based on aulon by Jbop; copyright notice reproduced here:
+{PROG_NAME} and libbbrdb based on aulon by Jbop; copyright notice reproduced here:
 
 aulon © 2018, 2019, 2020 Jbop (https://github.com/jbop1626)
 aulon is licensed under the GPL v3 (or any later version).
@@ -294,6 +294,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
+                    #[cfg(not(feature = "writing"))]
+                    "Y" => {
+                        eprintln!("This version of {PROG_NAME} was built without support for writing; rebuild with `-F writing` to use this command.")
+                    }
+                    #[cfg(feature = "writing")]
                     "Y" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 4 {
@@ -430,6 +435,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
+                    #[cfg(not(feature = "writing"))]
+                    "4" => {
+                        eprintln!("This version of {PROG_NAME} was built without support for writing; rebuild with `-F writing` to use this command.")
+                    }
+                    #[cfg(feature = "writing")]
                     "4" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -472,6 +482,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
+                    #[cfg(not(feature = "writing"))]
+                    "6" => {
+                        eprintln!("This version of {PROG_NAME} was built without support for writing; rebuild with `-F writing` to use this command.")
+                    }
+                    #[cfg(feature = "writing")]
                     "6" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -481,6 +496,20 @@ See the included file LIBUSB_AUTHORS.txt for more."
 
                             match player.DeleteFile(command[1]) {
                                 Ok(_) => println!("DeleteFile success"),
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
+                        } else {
+                            eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
+                        }
+                    }
+                    #[cfg(feature = "patched")]
+                    "7" => {
+                        if let Some(player) = &mut context.player {
+                            match player.DumpV2() {
+                                Ok(_) => println!("DumpV2 success"),
                                 Err(e) => {
                                     eprintln!("{e}");
                                     continue;
