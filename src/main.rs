@@ -3,7 +3,7 @@
 use std::fs::{read, write};
 
 use anyhow::Result;
-use bbrdb::BBPlayer;
+use bbrdb::{scan_devices, CardStats, GlobalHandle};
 use byte_unit::Byte;
 use chrono::{DateTime, Local};
 use rustyline::{error::ReadlineError, DefaultEditor};
@@ -13,17 +13,17 @@ const PROG_VER: &str = "0.0.1";
 
 #[derive(Default)]
 pub struct CliContext {
-    player: Option<BBPlayer>,
+    player: Option<GlobalHandle>,
 }
 
 fn main() -> Result<()> {
     println!("{PROG_NAME} v{PROG_VER}");
     let mut rl = DefaultEditor::new()?;
     let mut context = CliContext::default();
-    match BBPlayer::get_players() {
+    match scan_devices() {
         Ok(players) => {
             if players.len() == 1 {
-                context.player = Some(BBPlayer::new(&players[0])?)
+                context.player = Some(GlobalHandle::new(&players[0])?)
             }
         }
         Err(e) => return Err(e.into()),
@@ -65,6 +65,7 @@ fn main() -> Result<()> {
     4 file             - Write [file] to the console
     5                  - List all files currently on the console
     6 file             - Delete [file] from the console
+    7 from to          - Rename [from] to [to]
 
     h                  - Print this help
     ?                  - Print copyright and licensing information
@@ -103,7 +104,7 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
 
                     "l" => {
-                        let players = BBPlayer::get_players()?;
+                        let players = scan_devices()?;
                         for player in players {
                             println!("{player:?}");
                         }
@@ -128,7 +129,7 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                 continue;
                             }
                         };
-                        let players = BBPlayer::get_players()?;
+                        let players = scan_devices()?;
                         let player = match players.get(device) {
                             Some(p) => p,
                             None => {
@@ -136,7 +137,7 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                 continue;
                             }
                         };
-                        context.player = Some(BBPlayer::new(player)?);
+                        context.player = Some(GlobalHandle::new(player)?);
                         println!("Selected player {device} successfully");
                     }
 
@@ -210,11 +211,6 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(feature = "raw_access")]
-                    "L" => {
-                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
-                    }
-                    #[cfg(not(feature = "raw_access"))]
                     "L" => {
                         if let Some(player) = &mut context.player {
                             match player.ListFiles() {
@@ -225,7 +221,7 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                             println!(
                                                 "{:>12}: {:>7}",
                                                 filename,
-                                                Byte::from_bytes(size.into())
+                                                Byte::from_bytes(size as u128)
                                                     .get_appropriate_unit(true)
                                                     .format(0)
                                             );
@@ -240,11 +236,6 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(feature = "raw_access")]
-                    "F" => {
-                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
-                    }
-                    #[cfg(not(feature = "raw_access"))]
                     "F" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -336,7 +327,7 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                     continue;
                                 }
                             };
-                            match player.WriteSingleBlock(nand, spare, blk_num) {
+                            match player.WriteSingleBlock(blk_num, &nand, &spare) {
                                 Ok(_) => {
                                     println!("WriteSingleBlock success")
                                 }
@@ -348,15 +339,10 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(feature = "raw_access")]
-                    "C" => {
-                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
-                    }
-                    #[cfg(not(feature = "raw_access"))]
                     "C" => {
                         if let Some(player) = &context.player {
-                            match player.GetStats() {
-                                Ok((free, used, bad, seqno)) =>
+                            match player.CardStats() {
+                                Ok(CardStats{free, used, bad, seqno}) =>
                                     println!("Free: {free} ({})\nUsed: {used} ({})\nBad: {bad} ({})\nSequence Number: {seqno}", 
                                         Byte::from_bytes((free * 0x4000) as u128).get_appropriate_unit(true),
                                         Byte::from_bytes((used * 0x4000) as u128).get_appropriate_unit(true),
@@ -390,7 +376,7 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             } else {
                                 (command[1], command[2])
                             };
-                            let (nand, spare) = match player.DumpNAND() {
+                            let (nand, spare) = match player.DumpNANDSpare() {
                                 Ok(ns) => {
                                     println!("DumpNAND success");
                                     ns
@@ -416,11 +402,6 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(feature = "raw_access")]
-                    "3" => {
-                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
-                    }
-                    #[cfg(not(feature = "raw_access"))]
                     "3" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -455,11 +436,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(any(not(feature = "writing"), feature = "raw_access"))]
+                    #[cfg(not(feature = "writing"))]
                     "4" => {
                         eprintln!("This version of {PROG_NAME} was built without support for writing; rebuild with `-F writing` to use this command.")
                     }
-                    #[cfg(all(feature = "writing", not(feature = "raw_access")))]
+                    #[cfg(feature = "writing")]
                     "4" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -467,24 +448,18 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                 continue;
                             }
 
-                            let data = read(command[1])?;
-
-                            match player.WriteFile(data, command[1]) {
+                            let f = read(command[1]).map_err(std::io::Error::into);
+                            match f.and_then(|data| player.WriteFile(&data, command[1])) {
                                 Ok(_) => println!("WriteFile success"),
                                 Err(e) => {
                                     eprintln!("{e}");
                                     continue;
                                 }
-                            };
+                            }
                         } else {
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(feature = "raw_access")]
-                    "5" => {
-                        eprintln!("This version of {PROG_NAME} was built only supporting raw access; rebuild without `-F raw_access` to use this command.")
-                    }
-                    #[cfg(not(feature = "raw_access"))]
                     "5" => {
                         if let Some(player) = &mut context.player {
                             match player.ListFiles() {
@@ -493,7 +468,7 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                         println!(
                                             "{:>12}: {:>7}",
                                             filename,
-                                            Byte::from_bytes(size.into())
+                                            Byte::from_bytes(size as u128)
                                                 .get_appropriate_unit(true)
                                                 .format(0)
                                         );
@@ -507,11 +482,11 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(any(not(feature = "writing"), feature = "raw_access"))]
+                    #[cfg(not(feature = "writing"))]
                     "6" => {
                         eprintln!("This version of {PROG_NAME} was built without support for writing; rebuild with `-F writing` to use this command.")
                     }
-                    #[cfg(all(feature = "writing", not(feature = "raw_access")))]
+                    #[cfg(feature = "writing")]
                     "6" => {
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
@@ -530,11 +505,24 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
                     }
-                    #[cfg(feature = "patched")]
+                    #[cfg(not(feature = "writing"))]
+                    "7" => {
+                        eprintln!("This version of {PROG_NAME} was built without support for writing; rebuild with `-F writing` to use this command.")
+                    }
+                    #[cfg(feature = "writing")]
                     "7" => {
                         if let Some(player) = &mut context.player {
-                            match player.DumpV2() {
-                                Ok(_) => println!("DumpV2 success"),
+                            if command.len() < 2 {
+                                eprintln!("'7' requires two arguments, 'from' and 'to'. Type 'h' for a list of commands and their arguments.");
+                                continue;
+                            }
+
+                            let (from, to) = (command[1], command[2]);
+                            match player.RenameFile(from, to) {
+                                Ok(ns) => {
+                                    println!("RenameFile success");
+                                    ns
+                                }
                                 Err(e) => {
                                     eprintln!("{e}");
                                     continue;

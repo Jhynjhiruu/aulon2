@@ -67,9 +67,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.82"
+version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f538837af36e6f6a9be0faa67f9a314f8119e4e4b5867c6ab40ed60360142519"
+checksum = "25bdb32cbbdce2b519a9cd7df3a678443100e265d5e25ca763b7572a5104f5f3"
 
 [[package]]
 name = "array-init"
@@ -98,21 +98,21 @@ checksum = "f1fdabc7756949593fe60f30ec81974b613357de856987752631dea1e3394c80"
 [[package]]
 name = "bbrdb"
 version = "0.1.0"
-source = "git+https://github.com/Jhynjhiruu/bbrdb.git#42752b1522f5aaed5a34dbac29a7c0c678256b2e"
+source = "git+https://github.com/Jhynjhiruu/bbrdb.git#c697f1bf52fee2ddc735a2a49b10a4961c278a01"
 dependencies = [
+ "anyhow",
  "binrw",
  "chrono",
  "indicatif",
- "num-traits",
  "rusb",
  "thiserror",
 ]
 
 [[package]]
 name = "binrw"
-version = "0.11.2"
+version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab81d22cbd2d745852348b2138f3db2103afa8ce043117a374581926a523e267"
+checksum = "173901312e9850391d4d7c1318c4e099fdc037d61870fca427429830efdb4e5f"
 dependencies = [
  "array-init",
  "binrw_derive",
@@ -121,9 +121,9 @@ dependencies = [
 
 [[package]]
 name = "binrw_derive"
-version = "0.11.2"
+version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6b019a3efebe7f453612083202887b6f1ace59e20d010672e336eea4ed5be97"
+checksum = "cb515fdd6f8d3a357c8e19b8ec59ef53880807864329b1cb1cba5c53bf76557e"
 dependencies = [
  "either",
  "owo-colors",
@@ -433,9 +433,9 @@ dependencies = [
 
 [[package]]
 name = "libusb1-sys"
-version = "0.6.4"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9d0e2afce4245f2c9a418511e5af8718bcaf2fa408aefb259504d1a9cb25f27"
+checksum = "da050ade7ac4ff1ba5379af847a10a10a8e284181e060105bf8d86960ce9ce0f"
 dependencies = [
  "cc",
  "libc",
@@ -561,9 +561,9 @@ dependencies = [
 
 [[package]]
 name = "rusb"
-version = "0.9.3"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45fff149b6033f25e825cbb7b2c625a11ee8e6dac09264d49beb125e39aa97bf"
+checksum = "ab9f9ff05b63a786553a4c02943b74b34a988448671001e9a27e2f0565cc05a4"
 dependencies = [
  "libc",
  "libusb1-sys",
@@ -673,18 +673,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.58"
+version = "1.0.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03468839009160513471e86a034bb2c5c0e4baae3b43f79ffc55c4a5427b3297"
+checksum = "579e9083ca58dd9dcf91a9923bb9054071b9ebbd800b342194c9feb0ee89fc18"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.58"
+version = "1.0.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c61f3ba182994efc43764a46c018c347bc492c79f024e705f46567b418f6d4f7"
+checksum = "e2470041c06ec3ac1ab38d0356a6119054dedaea53e12fbefc0de730a1c08524"
 dependencies = [
  "proc-macro2",
  "quote",

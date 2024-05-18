@@ -5,3 +5,5 @@
 *.sta
 *.bak
 *.aes
+*.ini
+*.tmp
