@@ -6,6 +6,7 @@ use anyhow::Result;
 use bbrdb::{scan_devices, CardStats, GlobalHandle};
 use byte_unit::Byte;
 use chrono::{DateTime, Local};
+use parse_int::parse;
 use rustyline::{error::ReadlineError, DefaultEditor};
 
 const PROG_NAME: &str = "aulon2";
@@ -23,12 +24,18 @@ fn main() -> Result<()> {
     match scan_devices() {
         Ok(players) => {
             if players.len() == 1 {
-                context.player = Some(GlobalHandle::new(&players[0])?)
+                match GlobalHandle::new(&players[0]) {
+                    Ok(p) => context.player = Some(p),
+                    Err(e) => {
+                        eprintln!("{e}");
+                        context.player = None;
+                    }
+                }
             }
         }
-        Err(e) => return Err(e.into()),
+        Err(e) => eprintln!("{e}"),
     };
-    loop {
+    'repl: loop {
         let readline = rl.readline("> ");
         match readline {
             Ok(line) => {
@@ -45,31 +52,35 @@ fn main() -> Result<()> {
                         println!(
                             "Commands:
 
-    l                  - List available BB Players
-    s device           - Select BB Player <device>
+    l                         - List available BB Players
+    s device                  - Select BB Player <device>
 
-    B                  - Initialise USB connection to the selected console
-    I                  - Request the console's unique BBID
-    H value            - Set LED (0, 1 = off; 2 = on; 3 = flashing)
-    ;S hash_file       - Sign the SHA-1 hash in [hash_file] using ECDSA
-    J [time]           - Set console clock to PC's current time, or [time] if given (note: RFC3339 format)
-    L                  - List all games currently on the console
-    F file             - Dump the current filesystem block to [file]
-    X blkno nand spare - Read one block and its spare data from the console to [nand] and [spare]
-    Y blkno nand spare - Write one block and its spare data from [nand] and [spare] to the console
-    C                  - Print statistics about the console's NAND
-    Q                  - Close USB connection to the console
+    B                         - Initialise USB connection to the selected console
+    I                         - Request the console's unique BBID
+    H value                   - Set LED (0, 1 = off; 2 = on; 3 = flashing)
+    ;S hash_file              - Sign the SHA-1 hash in [hash_file] using ECDSA
+    J [time]                  - Set console clock to PC's current time, or [time] if given (note: RFC3339 format)
+    L                         - List all games currently on the console
+    F file                    - Dump the current filesystem block to [file]
+    X blkno nand spare        - Read one block and its spare data from the console to [nand] and [spare]
+    Y blkno nand spare        - Write one block and its spare data from [nand] and [spare] to the console
+    C                         - Print statistics about the console's NAND
+    Q                         - Close USB connection to the console
 
-    1 [nand, spare]    - Dump the console's NAND to 'nand.bin' and 'spare.bin', or [nand] and [spare] if both are provided
-    3 file             - Read [file] from the console
-    4 file             - Write [file] to the console
-    5                  - List all files currently on the console
-    6 file             - Delete [file] from the console
-    7 from to          - Rename [from] to [to]
+    1 [nand, spare]           - Dump the console's NAND to 'nand.bin' and 'spare.bin', or [nand] and [spare] if both are provided
+    2 [nand, spare], [ranges] - Write the console's NAND from 'nand.bin' and 'spare.bin', or [nand] and [spare] if both are provided
+                                [ranges] can optionally be specified, to only write certain blocks or ranges of blocks;
+                                e.g. \"2 0-0x100,4075\" writes blocks 0 - 0x100 (exclusive, i.e. not including block 0x100 itself),
+                                and block 4075. Make sure to prefix hexadecimal block numbers with '0x'!
+    3 file                    - Read [file] from the console
+    4 file                    - Write [file] to the console
+    5                         - List all files currently on the console
+    6 file                    - Delete [file] from the console
+    7 from to                 - Rename [from] to [to]
 
-    h                  - Print this help
-    ?                  - Print copyright and licensing information
-    q                  - Quit {PROG_NAME}"
+    h                         - Print this help
+    ?                         - Print copyright and licensing information
+    q                         - Quit {PROG_NAME}"
                         )
                     }
                     "?" => {
@@ -104,14 +115,20 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
 
                     "l" => {
-                        let players = scan_devices()?;
+                        let players = match scan_devices() {
+                            Ok(p) => p,
+                            Err(e) => {
+                                eprintln!("{e}");
+                                continue;
+                            }
+                        };
                         for player in players {
                             println!("{player:?}");
                         }
                     }
                     "s" => {
                         if let Some(player) = &mut context.player {
-                            if player.initialised() {
+                            if let Ok(true) = player.initialised() {
                                 eprintln!("Device already opened! Please close it with 'Q' before selecting a new device.");
                                 continue;
                             }
@@ -129,7 +146,13 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                 continue;
                             }
                         };
-                        let players = scan_devices()?;
+                        let players = match scan_devices() {
+                            Ok(p) => p,
+                            Err(e) => {
+                                eprintln!("{e}");
+                                continue;
+                            }
+                        };
                         let player = match players.get(device) {
                             Some(p) => p,
                             None => {
@@ -137,7 +160,14 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                 continue;
                             }
                         };
-                        context.player = Some(GlobalHandle::new(player)?);
+                        match GlobalHandle::new(player) {
+                            Ok(p) => context.player = Some(p),
+                            Err(e) => {
+                                eprintln!("{e}");
+                                context.player = None;
+                                continue;
+                            }
+                        };
                         println!("Selected player {device} successfully");
                     }
 
@@ -209,6 +239,34 @@ See the included file LIBUSB_AUTHORS.txt for more."
                             }
                         } else {
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
+                        }
+                    }
+                    "K" => {
+                        if let Some(player) = &context.player {
+                            let kernel_filename = if command.len() < 2 {
+                                "sksa"
+                            } else {
+                                command[1]
+                            };
+
+                            let sksa = match player.ReadSKSA() {
+                                Ok(sksa) => {
+                                    println!("ReadSKSA success");
+                                    sksa
+                                }
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
+
+                            match write(kernel_filename, sksa) {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            }
                         }
                     }
                     "L" => {
@@ -398,6 +456,102 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                     eprintln!("{e}")
                                 }
                             }
+                        } else {
+                            eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
+                        }
+                    }
+                    #[cfg(not(feature = "writing"))]
+                    "2" => {
+                        eprintln!("This version of {PROG_NAME} was built without support for writing; rebuild with `-F writing` to use this command.")
+                    }
+                    #[cfg(feature = "writing")]
+                    "2" => {
+                        if let Some(player) = &mut context.player {
+                            let (nand_filename, spare_filename) = if command.len() > 2 {
+                                (command[1], command[2])
+                            } else {
+                                ("nand.bin", "spare.bin")
+                            };
+
+                            let nand = match read(nand_filename) {
+                                Ok(n) => n,
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
+
+                            let spare = match read(spare_filename) {
+                                Ok(n) => n,
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
+
+                            let which_blocks = match command.len() {
+                                2 | 4 => {
+                                    let mut ranges = vec![];
+                                    let sections = command.last().unwrap().split(',');
+                                    for sect in sections {
+                                        let split = sect.split('-').collect::<Vec<_>>();
+                                        match split.len() {
+                                            1 => {
+                                                let num = match parse(split[0]) {
+                                                    Ok(n) => n,
+                                                    Err(e) => {
+                                                        eprintln!("{e}");
+                                                        continue 'repl;
+                                                    }
+                                                };
+                                                ranges.push(num);
+                                            }
+                                            2 => {
+                                                let start = if split[0] == "" {
+                                                    0
+                                                } else {
+                                                    match parse(split[0]) {
+                                                        Ok(n) => n,
+                                                        Err(e) => {
+                                                            eprintln!("{e}");
+                                                            continue 'repl;
+                                                        }
+                                                    }
+                                                };
+                                                let end = if split[1] == "" {
+                                                    (nand.len() / 0x4000) as u16
+                                                } else {
+                                                    match parse(split[1]) {
+                                                        Ok(n) => n,
+                                                        Err(e) => {
+                                                            eprintln!("{e}");
+                                                            continue 'repl;
+                                                        }
+                                                    }
+                                                };
+                                                ranges.extend(start..end);
+                                            }
+                                            _ => {
+                                                eprintln!("Invalid block range selection '{sect}'");
+                                                continue 'repl;
+                                            }
+                                        }
+                                    }
+                                    Some(ranges)
+                                }
+                                _ => None,
+                            };
+
+                            match player.WriteNANDSpare(&nand, &spare, which_blocks) {
+                                Ok(ns) => {
+                                    println!("WriteNAND success");
+                                    ns
+                                }
+                                Err(e) => {
+                                    eprintln!("{e}");
+                                    continue;
+                                }
+                            };
                         } else {
                             eprintln!("No console selected. Have you used the 'l' and 's' commands to select a console?");
                         }
