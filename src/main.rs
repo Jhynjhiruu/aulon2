@@ -1,9 +1,7 @@
-#![feature(let_chains)]
-
 use std::fs::{read, write};
 
 use anyhow::Result;
-use bbrdb::{scan_devices, CardStats, GlobalHandle};
+use bbrdb::{scan_devices, CardStats, Handle, LibBBRDBError};
 use byte_unit::Byte;
 use chrono::{DateTime, Local};
 use parse_int::parse;
@@ -14,14 +12,31 @@ const PROG_VER: &str = "0.0.1";
 
 #[derive(Default)]
 pub struct CliContext {
-    player: Option<GlobalHandle>,
+    player: Option<Handle>,
 }
 
 fn main() -> Result<()> {
     println!("{PROG_NAME} v{PROG_VER}");
-    let mut rl = DefaultEditor::new()?;
+    let mut rl = rustyline::Editor::<(), _>::with_config(
+        rustyline::Config::builder()
+            .auto_add_history(true)
+            .behavior(rustyline::Behavior::Stdio)
+            .bell_style(rustyline::config::BellStyle::Visible)
+            .bracketed_paste(true)
+            .check_cursor_position(true)
+            .color_mode(rustyline::ColorMode::Enabled)
+            .completion_prompt_limit(10)
+            .completion_type(rustyline::CompletionType::List)
+            .edit_mode(rustyline::EditMode::Emacs)
+            .enable_signals(true)
+            .history_ignore_space(false)
+            .indent_size(2)
+            .keyseq_timeout(None)
+            .tab_stop(4)
+            .build(),
+    )?;
     let mut context = CliContext::default();
-    match scan_devices() {
+    /*match scan_devices() {
         Ok(players) => {
             if players.len() == 1 {
                 match GlobalHandle::new(&players[0]) {
@@ -34,7 +49,25 @@ fn main() -> Result<()> {
             }
         }
         Err(e) => eprintln!("{e}"),
-    };
+    };*/
+
+    fn select_device(context: &mut CliContext, device: usize) -> Result<()> {
+        let players = scan_devices()?;
+        let player = players
+            .get(device)
+            .ok_or(anyhow::anyhow!("Invalid selection: {device}"))?;
+        match Handle::new(player) {
+            Ok(p) => {
+                context.player = Some(p);
+                Ok(())
+            }
+            Err(e) => {
+                context.player = None;
+                Err(e.into())
+            }
+        }
+    }
+
     'repl: loop {
         let readline = rl.readline("> ");
         match readline {
@@ -146,32 +179,17 @@ See the included file LIBUSB_AUTHORS.txt for more."
                                 continue;
                             }
                         };
-                        let players = match scan_devices() {
-                            Ok(p) => p,
-                            Err(e) => {
-                                eprintln!("{e}");
-                                continue;
-                            }
-                        };
-                        let player = match players.get(device) {
-                            Some(p) => p,
-                            None => {
-                                eprintln!("Invalid selection: {device}");
-                                continue;
-                            }
-                        };
-                        match GlobalHandle::new(player) {
-                            Ok(p) => context.player = Some(p),
-                            Err(e) => {
-                                eprintln!("{e}");
-                                context.player = None;
-                                continue;
-                            }
+                        if let Err(e) = select_device(&mut context, device) {
+                            eprintln!("{e}");
+                            continue;
                         };
                         println!("Selected player {device} successfully");
                     }
 
                     "B" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             match player.Init() {
                                 Ok(_) => println!("Init success"),
@@ -184,6 +202,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "I" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             match player.GetBBID() {
                                 Ok(bbid) => println!("BBID: {bbid:04X}"),
@@ -196,6 +217,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "H" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
                                 eprintln!("'H' requires an argument, 'value'. Type 'h' for a list of commands and their arguments.");
@@ -222,6 +246,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         eprintln!("Unimplemented");
                     }
                     "J" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             let time = if command.len() < 2 {
                                 Local::now().into()
@@ -242,7 +269,10 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "K" => {
-                        if let Some(player) = &context.player {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
+                        if let Some(player) = &mut context.player {
                             let kernel_filename = if command.len() < 2 {
                                 "sksa"
                             } else {
@@ -270,6 +300,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "L" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             match player.ListFiles() {
                                 Ok(files) => {
@@ -295,6 +328,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "F" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
                                 eprintln!("'F' requires an argument, 'file'. Type 'h' for a list of commands and their arguments.");
@@ -316,6 +352,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "X" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             if command.len() < 4 {
                                 eprintln!("'X' requires three arguments, 'blkno', 'nand' and 'spare'. Type 'h' for a list of commands and their arguments.");
@@ -359,6 +398,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
                     #[cfg(feature = "writing")]
                     "Y" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             if command.len() < 4 {
                                 eprintln!("'Y' requires three arguments, 'blkno', 'nand' and 'spare'. Type 'h' for a list of commands and their arguments.");
@@ -398,7 +440,10 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "C" => {
-                        if let Some(player) = &context.player {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
+                        if let Some(player) = &mut context.player {
                             match player.CardStats() {
                                 Ok(CardStats{free, used, bad, seqno}) =>
                                     println!("Free: {free} ({})\nUsed: {used} ({})\nBad: {bad} ({})\nSequence Number: {seqno}", 
@@ -414,6 +459,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "Q" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             match player.Close() {
                                 Ok(_) => println!("Close success"),
@@ -428,7 +476,10 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
 
                     "1" => {
-                        if let Some(player) = &context.player {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
+                        if let Some(player) = &mut context.player {
                             let (nand_filename, spare_filename) = if command.len() < 3 {
                                 ("nand.bin", "spare.bin")
                             } else {
@@ -466,6 +517,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
                     #[cfg(feature = "writing")]
                     "2" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             let (nand_filename, spare_filename) = if command.len() > 2 {
                                 (command[1], command[2])
@@ -557,6 +611,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "3" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
                                 eprintln!("'3' requires an argument, 'file'. Type 'h' for a list of commands and their arguments.");
@@ -596,6 +653,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
                     #[cfg(feature = "writing")]
                     "4" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
                                 eprintln!("'4' requires an argument, 'file'. Type 'h' for a list of commands and their arguments.");
@@ -615,6 +675,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                         }
                     }
                     "5" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             match player.ListFiles() {
                                 Ok(files) => {
@@ -642,6 +705,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
                     #[cfg(feature = "writing")]
                     "6" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
                                 eprintln!("'6' requires an argument, 'file'. Type 'h' for a list of commands and their arguments.");
@@ -665,6 +731,9 @@ See the included file LIBUSB_AUTHORS.txt for more."
                     }
                     #[cfg(feature = "writing")]
                     "7" => {
+                        if context.player.is_none() {
+                            let _ = select_device(&mut context, 0);
+                        }
                         if let Some(player) = &mut context.player {
                             if command.len() < 2 {
                                 eprintln!("'7' requires two arguments, 'from' and 'to'. Type 'h' for a list of commands and their arguments.");

@@ -10,4 +10,13 @@
 *.pak
 *.u0*
 *.rom
+*.usb
+*.z64
+*.cht
+*.mod
+*.1042
+*.note
+*.flash
+*.rec
+*.json
 sksa

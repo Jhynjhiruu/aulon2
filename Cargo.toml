@@ -7,13 +7,13 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.71"
-bbrdb = { git = "https://github.com/Jhynjhiruu/bbrdb.git" }
+bbrdb = { git = "https://github.com/Jhynjhiruu/bbrdb.git", branch = "nusb" }
 #bbrdb = { path = "../bbrdb" }
 byte-unit = "4.0.19"
 chrono = "0.4.24"
 clap = { version = "4.2.7", features = ["derive", "cargo"] }
 parse_int = "0.6.0"
-rustyline = "11.0.0"
+rustyline = "15.0.0"
 
 [features]
 default = ["writing"]
