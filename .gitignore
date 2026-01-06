@@ -14,7 +14,9 @@
 *.z64
 *.cht
 *.mod
-*.1042
+*1041
+*1042
+*.gng
 *.note
 *.flash
 *.rec
